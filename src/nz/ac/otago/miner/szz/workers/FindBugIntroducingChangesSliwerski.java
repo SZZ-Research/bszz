@@ -49,65 +49,72 @@ import org.eclipse.jgit.lib.ObjectReader;
 //}}}
 
 
-public class FindBugIntroducingChangesSliwerski {
+public class FindBugIntroducingChangesSliwerski implements Runnable {
 	private static final Logger log = Logger.getLogger(FindBugIntroducingChangesSliwerski.class);
-	private String project;
+	private static String project;
 	private String rev;
-	private LinkedIssueDAO lidao;
+	private static LinkedIssueDAO lidao;
 	private Git git;
 	private GitRepository encap;
 	private String url;
 	private Console c = System.console(); //for debugging purposes
+	private List<String> linkedRevs = new ArrayList<String>();
+	private List<String> revisionsProcessed = new ArrayList<String>();
+	private int threadId;
 
 	//{{{ Constructor() -> FindBugIntroducingChangesSliwerski(String project, LinkedIssueDAO lidao, GitRepository encap, String url)
-	public FindBugIntroducingChangesSliwerski(String project, LinkedIssueDAO lidao, GitRepository encap, String url){
+	public FindBugIntroducingChangesSliwerski(String project, LinkedIssueDAO lidao, 
+			GitRepository encap, String url, List<String> linkedRevs, List<String> revisionsProcessed,
+			int threadId){
 		this.project = project;
 		this.lidao = lidao;
 		this.encap = encap;
 		this.url = url;
+		this.linkedRevs = linkedRevs;
+		this.revisionsProcessed = revisionsProcessed;
+		this.threadId = threadId;
 	}
 	//}}}
 
 	//{{{ run()
-	public void run() throws Exception {
-
-		git = encap.getGit();
-		Repository repo = git.getRepository();
-		List<String> revisionsProcessed = lidao.getLastRevisionsProcessed(project);
-		//getting the revisions to process.
-		List<String> linkedRevs = null;
-		linkedRevs = lidao.getLinkedRevisions(project); 
-		log.info(String.format("%s - %d Linked revisions found... for project %s", project, linkedRevs.size(), project));
-		long logcount = 1;
-		for(String newhash : linkedRevs){
-			//in case we needed to stop the process
-			if(revisionsProcessed.contains(newhash)){
-				log.info(String.format("%s - revision %s was processed already!",project, newhash));
-				logcount++;
-				log.info(String.format("%s - %d revisions processed of %s", project, logcount, linkedRevs.size()));
-				continue;
-			}
-			List<BugIntroducingCode> bugchanges = new ArrayList<BugIntroducingCode>();
-			try{
-				RevCommit newCommit = null;
-				try(RevWalk walk = new RevWalk(repo)){
-					newCommit = walk.parseCommit(repo.resolve(newhash));
+	public void run()  {
+		try{
+			git = encap.getGit();
+			Repository repo = git.getRepository();
+			log.info(String.format("thread:%d: %s - %d Linked revisions found... for project %s", threadId, project, linkedRevs.size(), project));
+			long logcount = 1;
+			for(String newhash : linkedRevs){
+				//in case we needed to stop the process
+				if(revisionsProcessed.contains(newhash)){
+					log.info(String.format("thread:%d: %s - revision %s was processed already!",threadId, project, newhash));
+					logcount++;
+					log.info(String.format("thread:%d: %s - %d revisions processed of %s", threadId, project, logcount, linkedRevs.size()));
+					continue;
 				}
-				if(newCommit != null){
-					RevCommit oldCommit = getPrevHash(newCommit,repo);
-					List<DiffHunk> hunks = getHunks(newCommit,oldCommit);
-					bugchanges.addAll(blame(hunks, oldCommit, newCommit, repo)); 
-					log.debug(String.format("%s - %d bics found!",project , bugchanges.size()));
+				List<BugIntroducingCode> bugchanges = new ArrayList<BugIntroducingCode>();
+				try{
+					RevCommit newCommit = null;
+					try(RevWalk walk = new RevWalk(repo)){
+						newCommit = walk.parseCommit(repo.resolve(newhash));
+					}
+					if(newCommit != null){
+						RevCommit oldCommit = getPrevHash(newCommit,repo);
+						List<DiffHunk> hunks = getHunks(newCommit,oldCommit);
+						bugchanges.addAll(blame(hunks, oldCommit, newCommit, repo)); 
+						log.debug(String.format("%s - %d bics found!",project , bugchanges.size()));
+					}
+				} catch (Exception e) {
+					logcount++;
+					log.error(String.format("thread:%d: %s - Revision %s ignored due to error: \n%s",threadId, project, newhash, e.getMessage()));
+					e.printStackTrace();
+					log.info(String.format("thread:%d: %s - %d revisions processed of %s", threadId, project, logcount, linkedRevs.size()));
 				}
-			} catch (Exception e) {
+				persistBugIntroChanges(bugchanges);
+				log.info(String.format("thread:%d: %s - %d revisions processed of %s", threadId, project, logcount, linkedRevs.size()));
 				logcount++;
-				log.error(String.format("%s - Revision %s ignored due to error: \n%s",project, newhash, e.getMessage()));
-				e.printStackTrace();
-				log.info(String.format("%s - %d revisions processed of %s", project, logcount, linkedRevs.size()));
 			}
-			persistBugIntroChanges(bugchanges);
-			log.info(String.format("%s - %d revisions processed of %s", project, logcount, linkedRevs.size()));
-			logcount++;
+		} catch (Exception e){
+			e.printStackTrace();
 		}
 	}
 	//}}}
@@ -219,11 +226,11 @@ public class FindBugIntroducingChangesSliwerski {
 	} //}}}
 	
 	//{{{ persistBugIntroChanges(List<BugIntroducingCode> bugchanges)
-	private void persistBugIntroChanges(List<BugIntroducingCode> bugchanges) throws Exception{
+	private static synchronized void persistBugIntroChanges(List<BugIntroducingCode> bugchanges) throws Exception{
 		Transaction tx = lidao.beginTransaction();
 		for(BugIntroducingCode bugchange : bugchanges){
 			lidao.insertBugIntroducingCode(bugchange);
-			lidao.insertProjectRevisionsProcessed(this.project,bugchange.getFixRevision());
+			lidao.insertProjectRevisionsProcessed(project,bugchange.getFixRevision());
 		}
 		tx.commit();
 	}

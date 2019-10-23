@@ -70,12 +70,45 @@ public class SzzSliwerski extends Miner {
 
 	private void findBugIntroducingChanges() throws Exception {
 		try{
-			FindBugIntroducingChangesSliwerski worker = new FindBugIntroducingChangesSliwerski(this.project,
-					this.liDao, 
-					encapsulation, 
-					this.repoUrl);
-			log.info("initializing the runner!");
-			worker.run();
+			int threads = Integer.valueOf(this.getProperty("threads","/backhoe.properties"));
+			log.info(String.format("number of threads %d",threads));
+			List<String> linkedRevs = liDao.getLinkedRevisions(project); 
+			List<String> revisionsProcessed = liDao.getLastRevisionsProcessed(project);
+			int size = linkedRevs.size();
+			log.info(String.format("total number of revs: %d",size));
+			int partition = size/threads;  
+			log.info(String.format("partition of revs: %d",partition));
+			List<List<String>> partitionedRevs = new ArrayList<List<String>>();
+			int checkPoint = 0;
+			log.info(String.format("start of the partition: %d", checkPoint));
+			for(int i = 0; i < threads; i++){
+				List<String> partitionRev = new ArrayList<String>();
+				if((i+1)!=threads){
+					log.info(String.format("end of the partition: %d", checkPoint + partition));
+					partitionRev.addAll(linkedRevs.subList(checkPoint,checkPoint + partition));
+					log.info(String.format("partition size: %d", partitionRev.size()));
+					checkPoint = checkPoint + partition;
+					log.info(String.format("start of the next partition: %d", checkPoint));
+				} else {
+					log.info(String.format("end of the partition: %d", linkedRevs.size()));
+					partitionRev.addAll(linkedRevs.subList(checkPoint,linkedRevs.size()));
+					log.info(String.format("partition size: %d", partitionRev.size()));
+				}
+				partitionedRevs.add(partitionRev);
+			}
+
+			for(int i = 0; i < threads; i++){
+				FindBugIntroducingChangesSliwerski worker = new FindBugIntroducingChangesSliwerski(this.project,
+						this.liDao, 
+						encapsulation, 
+						this.repoUrl,
+						partitionedRevs.get(i),
+						revisionsProcessed,
+						i);
+				Thread t = new Thread(worker);
+				log.info("initializing the runner!");
+				t.start();
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
