@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="libs/org.eclipse.jgit-5.5.0.201909110433-r-sources.jar"/>
+	<classpathentry kind="lib" path="libs/org.eclipse.jgit-5.5.0.201909110433-r.jar"/>
+</classpath>

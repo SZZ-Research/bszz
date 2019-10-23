@@ -1,0 +1,5 @@
+bszz-progress.sql
+command.txt
+*.swp
+build/
+.gitfiles/
