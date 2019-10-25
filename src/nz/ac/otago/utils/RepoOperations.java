@@ -161,7 +161,7 @@ public class RepoOperations {
 								lineobj.setContext_difference(context_difference);
 								previousType = LineType.ADDITION;
 								if (linkageFlag) {
-									lineobj.getOrigins().addAll(deletionsBuffer);
+									//lineobj.getOrigins().addAll(deletionsBuffer);
 									//for (Line deletion : deletionsBuffer) {
 									//	deletion.getEvolutions().add(lineobj);
 									//}
