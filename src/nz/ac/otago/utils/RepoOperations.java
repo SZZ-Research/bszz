@@ -162,9 +162,9 @@ public class RepoOperations {
 								previousType = LineType.ADDITION;
 								if (linkageFlag) {
 									lineobj.getOrigins().addAll(deletionsBuffer);
-									for (Line deletion : deletionsBuffer) {
-										deletion.getEvolutions().add(lineobj);
-									}
+									//for (Line deletion : deletionsBuffer) {
+									//	deletion.getEvolutions().add(lineobj);
+									//}
 								}
 							} else {
 								if(!firstOccurrenceFound){ 
