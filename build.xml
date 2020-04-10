@@ -5,7 +5,7 @@
     <property name="classes.dir" value="${build.dir}/classes"/>
     <property name="build.libs.dir"   value="${classes.dir}/libs"/>
     <property name="lib.dir" 	 value="libs"/>
-    <property name="main-class"  value="br.ufrn.miner.szz.SzzSliwerski"/>
+    <property name="main-class"  value="nz.ac.otago.miner.szz.SzzSliwerski"/>
     <property name="myjar" 	 value="${build.dir}/${ant.project.name}.jar"/>
 
     <path id="classpath">
